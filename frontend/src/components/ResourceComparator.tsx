@@ -18,7 +18,9 @@ import {
     Tooltip,
     Grid,
     Switch,
-    FormControlLabel
+    FormControlLabel,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import {
     ExpandMore,
@@ -30,9 +32,8 @@ import {
     Error,
     Info
 } from '@mui/icons-material';
-import {html} from "diff2html";
+import ReactDiffViewer from 'react-diff-viewer';
 import * as diff from 'diff';
-import 'diff2html/bundles/css/diff2html.min.css';
 
 interface ComparisonResult {
     namespace: string;
@@ -50,6 +51,18 @@ interface ResourceComparison {
     diff: string | null;
     mainResource: any;
     replicaResource: any;
+}
+
+interface SelectedLine {
+    id: string;
+    resourceName: string;
+    resourceType: string;
+    namespace: string;
+    key?: string; // For ConfigMap keys
+    lineType: 'addition' | 'deletion' | 'context';
+    lineContent: string;
+    lineNumber: number;
+    side: 'left' | 'right';
 }
 
 interface ResourceComparatorProps {
@@ -78,6 +91,8 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         resource: ResourceComparison | null;
         direction: 'main-to-replica' | 'replica-to-main' | null;
     }>({open: false, resource: null, direction: null});
+    const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([]);
+    const [currentTab, setCurrentTab] = useState(0);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -105,7 +120,7 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
             case 'replica-only':
                 return <Error/>;
             default:
-                return <Error />;
+                return <Error/>;
         }
     };
 
@@ -127,25 +142,24 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
     // Utility function to check if a resource is an opaque secret
     const isOpaqueSecret = (comparison: ResourceComparison): boolean => {
         if (comparison.type !== 'Secret') return false;
-        
+
         // Check if either resource has type "Opaque"
         const mainType = comparison.mainResource?.type;
         const replicaType = comparison.replicaResource?.type;
-        
+
         return mainType === 'Opaque' || replicaType === 'Opaque';
     };
 
     // Utility function to decode base64 data
     const decodeBase64Data = (data: any): any => {
         if (!data || typeof data !== 'object') return data;
-        
+
         const decoded: any = {};
         for (const [key, value] of Object.entries(data)) {
             if (typeof value === 'string') {
                 try {
                     decoded[key] = atob(value);
                 } catch (e) {
-                    // If decoding fails, keep original value
                     decoded[key] = value;
                 }
             } else {
@@ -155,21 +169,20 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         return decoded;
     };
 
-    // Utility function to create ConfigMap key-by-key diffs
     const createConfigMapKeyDiffs = (comparison: ResourceComparison): { key: string, diff: string }[] => {
         if (!comparison.mainResource && !comparison.replicaResource) return [];
-        
+
         const mainData = comparison.mainResource?.data || {};
         const replicaData = comparison.replicaResource?.data || {};
-        
+
         // Get all unique keys from both data objects
         const allKeys = new Set([...Object.keys(mainData), ...Object.keys(replicaData)]);
         const keyDiffs: { key: string, diff: string }[] = [];
-        
+
         allKeys.forEach(key => {
             const mainValue = mainData[key] || '';
             const replicaValue = replicaData[key] || '';
-            
+
             if (mainValue !== replicaValue) {
                 const keyDiff = diff.createPatch(
                     key,
@@ -178,30 +191,29 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                     'Main Cluster',
                     'Replica Cluster'
                 );
-                keyDiffs.push({ key, diff: keyDiff });
+                keyDiffs.push({key, diff: keyDiff});
             }
         });
-        
+
         return keyDiffs;
     };
 
-    // Utility function to create diff with optionally decoded data
     const createDecodedDiff = (comparison: ResourceComparison): string | null => {
         if (!comparison.mainResource && !comparison.replicaResource) return null;
-        
+
         let mainData = comparison.mainResource?.data;
         let replicaData = comparison.replicaResource?.data;
-        
+
         if (showDecodedContent && isOpaqueSecret(comparison)) {
             mainData = mainData ? decodeBase64Data(mainData) : mainData;
             replicaData = replicaData ? decodeBase64Data(replicaData) : replicaData;
         }
-        
+
         const mainDataStr = JSON.stringify(mainData || {}, null, 2);
         const replicaDataStr = JSON.stringify(replicaData || {}, null, 2);
-        
+
         if (mainDataStr === replicaDataStr) return null;
-        
+
         // Use the same diff.createPatch method as the backend
         return diff.createPatch(
             comparison.name,
@@ -215,7 +227,24 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
     const handleViewDiff = (comparison: ResourceComparison) => {
         setSelectedComparison(comparison);
         setShowDecodedContent(false); // Reset toggle when opening new diff
+        setCurrentTab(0); // Reset to first tab when opening new diff
         setDialogOpen(true);
+    };
+
+    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+        setCurrentTab(newValue);
+    };
+
+    const handleLineSelection = (line: SelectedLine, isSelected: boolean) => {
+        if (isSelected) {
+            setSelectedLines(prev => [...prev, line]);
+        } else {
+            setSelectedLines(prev => prev.filter(l => l.id !== line.id));
+        }
+    };
+
+    const isLineSelected = (lineId: string): boolean => {
+        return selectedLines.some(line => line.id === lineId);
     };
 
     const handleApplyChanges = (resource: ResourceComparison, direction: 'main-to-replica' | 'replica-to-main') => {
@@ -246,17 +275,382 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
     const renderDiff = (diffText: string) => {
         if (!diffText) return null;
 
-        const diffHtml = html(diffText, {
-            drawFileList: false,
-            matching: 'lines',
-            outputFormat: 'side-by-side'
+        // Parse the unified diff to extract old and new content
+        const lines = diffText.split('\n');
+        let oldText = '';
+        let newText = '';
+
+        // Skip the header lines (start with @@, ---, +++)
+        const contentLines = lines.filter(line =>
+            !line.startsWith('@@') &&
+            !line.startsWith('---') &&
+            !line.startsWith('+++') &&
+            !line.startsWith('Index:') &&
+            line.trim() !== ''
+        );
+
+        contentLines.forEach(line => {
+            if (line.startsWith('-')) {
+                oldText += line.substring(1) + '\n';
+            } else if (line.startsWith('+')) {
+                newText += line.substring(1) + '\n';
+            } else if (line.startsWith(' ')) {
+                // Context line - add to both
+                const contextLine = line.substring(1) + '\n';
+                oldText += contextLine;
+                newText += contextLine;
+            }
         });
 
         return (
-            <div
-                dangerouslySetInnerHTML={{__html: diffHtml}}
-                style={{fontSize: '12px'}}
-            />
+            <div style={{width: '100%', maxWidth: '100%', overflowX: 'auto', display: 'block'}}>
+                <ReactDiffViewer
+                    oldValue={oldText.trim()}
+                    newValue={newText.trim()}
+                    rightTitle={'Main Cluster'}
+                    leftTitle={'Replica Cluster'}
+                    splitView={true}
+                    showDiffOnly={false}
+                    disableWordDiff={true}
+                    hideLineNumbers={false}
+                    styles={{
+                        lineNumber: {
+                            fontSize: '10px',
+                        },
+                        contentText: {
+                            fontSize: '10px',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '750px',
+                            lineHeight: '10px'
+                        }
+                    }}
+                />
+            </div>
+        );
+    };
+
+    const renderSelectableDiff = (diffText: string, resourceName: string, resourceType: string, namespace: string, key?: string) => {
+        if (!diffText) return null;
+        const lines = diffText.split('\n');
+        let oldText = '';
+        let newText = '';
+        const lineMapping: Map<string, {
+            content: string,
+            type: 'addition' | 'deletion' | 'context',
+            originalLine: string
+        }> = new Map();
+        const contentLines = lines.filter(line =>
+            !line.startsWith('@@') &&
+            !line.startsWith('---') &&
+            !line.startsWith('+++') &&
+            !line.startsWith('Index:') &&
+            line.trim() !== ''
+        );
+
+        let oldLineNum = 1;
+        let newLineNum = 1;
+
+        contentLines.forEach(line => {
+            if (line.startsWith('-')) {
+                const content = line.substring(1);
+                oldText += content + '\n';
+                lineMapping.set(`L-${oldLineNum}`, {
+                    content,
+                    type: 'deletion',
+                    originalLine: line
+                });
+                oldLineNum++;
+            } else if (line.startsWith('+')) {
+                const content = line.substring(1);
+                newText += content + '\n';
+                lineMapping.set(`R-${newLineNum}`, {
+                    content,
+                    type: 'addition',
+                    originalLine: line
+                });
+                newLineNum++;
+            } else if (line.startsWith(' ')) {
+                // Context line - add to both
+                const contextLine = line.substring(1);
+                oldText += contextLine + '\n';
+                newText += contextLine + '\n';
+                lineMapping.set(`L-${oldLineNum}`, {
+                    content: contextLine,
+                    type: 'context',
+                    originalLine: line
+                });
+                lineMapping.set(`R-${newLineNum}`, {
+                    content: contextLine,
+                    type: 'context',
+                    originalLine: line
+                });
+                oldLineNum++;
+                newLineNum++;
+            }
+        });
+
+        const handleLineClick = (lineId: string) => {
+            const lineData = lineMapping.get(lineId);
+            if (!lineData || lineData.type === 'context') return; // Don't allow selection of context lines
+
+            const side = lineId.startsWith('L-') ? 'left' : 'right';
+            const lineNumber = parseInt(lineId.substring(2));
+
+            const selectedLine: SelectedLine = {
+                id: `${resourceName}-${key || 'main'}-${lineId}`,
+                resourceName,
+                resourceType,
+                namespace,
+                key,
+                lineType: lineData.type as 'addition' | 'deletion',
+                lineContent: lineData.content,
+                lineNumber,
+                side
+            };
+
+            const isAlreadySelected = isLineSelected(selectedLine.id);
+            handleLineSelection(selectedLine, !isAlreadySelected);
+        };
+        const highlightedLines = selectedLines
+            .filter(line =>
+                line.resourceName === resourceName &&
+                line.resourceType === resourceType &&
+                line.namespace === namespace &&
+                line.key === key
+            )
+            .map(line => {
+                const side = line.side === 'left' ? 'L' : 'R';
+                return `${side}-${line.lineNumber}`;
+            });
+
+        return (
+            <div style={{width: '100%', maxWidth: '100%', overflowX: 'auto', display: 'block'}}>
+                <ReactDiffViewer
+                    oldValue={oldText.trim()}
+                    newValue={newText.trim()}
+                    leftTitle={"Main Cluster"}
+                    rightTitle={"Replica Cluster"}
+                    splitView={true}
+                    showDiffOnly={false}
+                    disableWordDiff={true}
+                    hideLineNumbers={false}
+                    onLineNumberClick={handleLineClick}
+                    highlightLines={highlightedLines}
+                    styles={{
+                        lineNumber: {
+                            fontSize: '10px',
+                        },
+                        contentText: {
+                            fontSize: '10px',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '750px',
+                            lineHeight: '10px !important'
+                        }
+                    }}
+                />
+                <div style={{marginTop: '16px', padding: '8px', backgroundColor: '#e3f2fd', borderRadius: '4px'}}>
+                    <Typography variant="body2" color="primary">
+                        💡 Click on line numbers to select/deselect specific changes.
+                        Selected lines will appear in the "Selected Changes" tab.
+                    </Typography>
+                </div>
+            </div>
+        );
+    };
+
+    // Function to merge selected lines with destination resource data
+    const mergeSelectedChanges = (direction: 'main-to-replica' | 'replica-to-main'): any => {
+        if (selectedLines.length === 0 || !selectedComparison) return null;
+
+        // Group selected lines by resource and key
+        const changesByResource: { [key: string]: SelectedLine[] } = {};
+        selectedLines.forEach(line => {
+            const key = `${line.resourceName}-${line.resourceType}-${line.namespace}-${line.key || 'default'}`;
+            if (!changesByResource[key]) {
+                changesByResource[key] = [];
+            }
+            changesByResource[key].push(line);
+        });
+
+        // Get the base resource data to modify
+        const sourceResource = direction === 'main-to-replica' ?
+            selectedComparison.mainResource :
+            selectedComparison.replicaResource;
+        const destinationResource = direction === 'main-to-replica' ?
+            selectedComparison.replicaResource :
+            selectedComparison.mainResource;
+
+        if (!destinationResource) return sourceResource;
+
+        // Create a deep copy of the destination resource
+        const mergedResource = JSON.parse(JSON.stringify(destinationResource));
+
+        // Process changes for each resource/key combination
+        Object.keys(changesByResource).forEach(resourceKey => {
+            const changes = changesByResource[resourceKey];
+            const firstChange = changes[0];
+
+            if (firstChange.resourceType === 'ConfigMap') {
+                // Handle ConfigMap key-specific changes
+                if (firstChange.key && mergedResource.data) {
+                    const originalValue = destinationResource.data[firstChange.key] || '';
+                    const sourceValue = sourceResource?.data?.[firstChange.key] || '';
+
+                    // For ConfigMap, apply the source value for the specific key
+                    // The selected lines represent the diff, but we want to apply the complete source value
+                    mergedResource.data[firstChange.key] = sourceValue;
+                }
+            } else {
+                // Handle Secret and other resource types
+                // For secrets, we typically want to merge the entire data object
+                if (sourceResource?.data && mergedResource.data) {
+                    // Apply selected changes by merging the source data
+                    const affectedKeys = new Set<string>();
+                    changes.forEach(change => {
+                        // Extract key from line content if it's a JSON line
+                        try {
+                            const match = change.lineContent.match(/"([^"]+)":/);
+                            if (match) {
+                                affectedKeys.add(match[1]);
+                            }
+                        } catch (e) {
+                            // If we can't parse, apply all source data
+                        }
+                    });
+
+                    // Apply changes for affected keys
+                    if (affectedKeys.size > 0) {
+                        affectedKeys.forEach(key => {
+                            if (sourceResource.data[key] !== undefined) {
+                                mergedResource.data[key] = sourceResource.data[key];
+                            }
+                        });
+                    } else {
+                        // If we can't determine specific keys, merge all data
+                        mergedResource.data = {...mergedResource.data, ...sourceResource.data};
+                    }
+                }
+            }
+        });
+        console.log(mergedResource.data);
+        console.log(sourceResource.data);
+        console.log(destinationResource.data);
+
+        return mergedResource;
+    };
+
+    const handleApplySelectedChanges = (direction: 'main-to-replica' | 'replica-to-main') => {
+        if (!selectedComparison) return;
+
+        const mergedResource = mergeSelectedChanges(direction);
+        if (!mergedResource) {
+            console.error('Failed to merge selected changes');
+            return;
+        }
+
+        // Call the existing onApplyChanges function with the merged resource
+        const originalResource = direction === 'main-to-replica' ?
+            selectedComparison.replicaResource :
+            selectedComparison.mainResource;
+
+        // onApplyChanges(
+        //     selectedComparison.name,
+        //     selectedComparison.type,
+        //     selectedComparison.namespace,
+        //     direction,
+        //     mergedResource,
+        //     originalResource
+        // );
+        //
+        // // Clear selected lines after applying changes
+        // setSelectedLines([]);
+    };
+
+    const renderSelectedChanges = () => {
+        if (selectedLines.length === 0) {
+            return (
+                <Alert severity="info">
+                    No lines selected. Switch to the "Diff View" tab and select specific lines to see them here.
+                </Alert>
+            );
+        }
+
+        return (
+            <Box>
+                <Typography variant="h6" gutterBottom>
+                    Selected Changes ({selectedLines.length} lines selected)
+                </Typography>
+
+                <Box sx={{mt: 2, display: 'flex', gap: 1, mb: 2}}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setSelectedLines([])}
+                    >
+                        Clear All Selections
+                    </Button>
+                    {selectedComparison && selectedComparison.mainExists && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            startIcon={<ArrowForward/>}
+                            onClick={() => handleApplySelectedChanges('main-to-replica')}
+                            disabled={loading}
+                        >
+                            Apply Changes to Replica
+                        </Button>
+                    )}
+                    {selectedComparison && selectedComparison.replicaExists && (
+                        <Button
+                            variant="contained"
+                            color="secondary"
+                            size="small"
+                            startIcon={<ArrowBack/>}
+                            onClick={() => handleApplySelectedChanges('replica-to-main')}
+                            disabled={loading}
+                        >
+                            Apply Changes to Main
+                        </Button>
+                    )}
+                </Box>
+
+                {selectedLines.map((line, index) => (
+                    <Box key={line.id} sx={{mb: 2}}>
+                        <Typography variant="subtitle2" gutterBottom>
+                            {line.resourceType}: {line.resourceName}
+                            {line.key && ` (Key: ${line.key})`}
+                        </Typography>
+                        <Box sx={{
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            p: 1,
+                            backgroundColor: line.lineType === 'addition' ? 'rgba(0, 255, 0, 0.1)' :
+                                line.lineType === 'deletion' ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
+                            borderLeft: line.lineType === 'addition' ? '3px solid green' :
+                                line.lineType === 'deletion' ? '3px solid red' : 'none'
+                        }}>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontFamily: 'monospace',
+                                    fontSize: '12px',
+                                    color: line.lineType === 'addition' ? 'success.main' :
+                                        line.lineType === 'deletion' ? 'error.main' : 'text.primary'
+                                }}
+                            >
+                                {line.lineType === 'addition' ? '+ ' : line.lineType === 'deletion' ? '- ' : '  '}
+                                {line.lineContent}
+                            </Typography>
+                        </Box>
+                    </Box>
+                ))}
+            </Box>
         );
     };
 
@@ -266,7 +660,7 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         // Special handling for ConfigMap resources - show key-by-key diffs
         if (comparison.type === 'ConfigMap') {
             const keyDiffs = createConfigMapKeyDiffs(comparison);
-            
+
             if (keyDiffs.length === 0) {
                 return (
                     <Alert severity="info">
@@ -280,26 +674,29 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                     <Typography variant="h6" gutterBottom>
                         ConfigMap Key Differences ({keyDiffs.length} key{keyDiffs.length !== 1 ? 's' : ''} differ)
                     </Typography>
-                    {keyDiffs.map(({ key, diff }, index) => (
-                        <Box key={key} sx={{ mb: 3 }}>
+                    {keyDiffs.map(({key, diff}, index) => (
+                        <Box key={key} sx={{mb: 3}}>
                             <Typography variant="subtitle1" gutterBottom>
                                 Key: <code>{key}</code>
                             </Typography>
-                            {renderDiff(diff)}
+                            {currentTab === 0 ?
+                                renderSelectableDiff(diff, comparison.name, comparison.type, comparison.namespace, key) :
+                                renderDiff(diff)
+                            }
                             {index < keyDiffs.length - 1 && (
-                                <Box sx={{ my: 2, borderBottom: 1, borderColor: 'divider' }} />
+                                <Box sx={{my: 2, borderBottom: 1, borderColor: 'divider'}}/>
                             )}
                         </Box>
                     ))}
                 </Box>
             );
         }
-
-        // For opaque secrets with decode toggle enabled, create new diff with decoded data
         if (isOpaqueSecret(comparison) && showDecodedContent) {
             const decodedDiff = createDecodedDiff(comparison);
             if (decodedDiff) {
-                return renderDiff(decodedDiff);
+                return currentTab === 0 ?
+                    renderSelectableDiff(decodedDiff, comparison.name, comparison.type, comparison.namespace) :
+                    renderDiff(decodedDiff);
             }
             return (
                 <Alert severity="info">
@@ -307,10 +704,10 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                 </Alert>
             );
         }
-
-        // Use original diff for non-opaque secrets or when decode toggle is off
         if (comparison.diff) {
-            return renderDiff(comparison.diff);
+            return currentTab === 0 ?
+                renderSelectableDiff(comparison.diff, comparison.name, comparison.type, comparison.namespace) :
+                renderDiff(comparison.diff);
         }
 
         return (
@@ -565,7 +962,7 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                 fullWidth
             >
                 <DialogTitle>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
                         <Box>
                             Difference View: {selectedComparison?.name}
                             <Typography variant="subtitle2" color="text.secondary">
@@ -592,7 +989,16 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                     </Box>
                 </DialogTitle>
                 <DialogContent>
-                    {selectedComparison && renderDiffContent(selectedComparison)}
+                    <Box sx={{borderBottom: 1, borderColor: 'divider'}}>
+                        <Tabs value={currentTab} onChange={handleTabChange}>
+                            <Tab label="Diff View"/>
+                            <Tab label={`Selected Changes (${selectedLines.length})`}/>
+                        </Tabs>
+                    </Box>
+                    <Box sx={{mt: 2}}>
+                        {currentTab === 0 && selectedComparison && renderDiffContent(selectedComparison)}
+                        {currentTab === 1 && renderSelectedChanges()}
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialogOpen(false)}>Close</Button>
