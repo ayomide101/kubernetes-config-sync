@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  config-compartor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('http'); http.get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => { process.exit(1); });"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    # volumes:
+      # Optional: Mount kubeconfig directory for local testing
+      # - ~/.kube:/home/app/.kube:ro
+    networks:
+      - config-compartor-network
+
+  # Optional: nginx reverse proxy for production-like setup
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # - ./ssl:/etc/nginx/ssl:ro  # For SSL certificates
+    depends_on:
+      - config-compartor
+    networks:
+      - config-compartor-network
+    profiles:
+      - with-nginx
+
+networks:
+  config-compartor-network:
+    driver: bridge
