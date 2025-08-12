@@ -155,6 +155,36 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         return decoded;
     };
 
+    // Utility function to create ConfigMap key-by-key diffs
+    const createConfigMapKeyDiffs = (comparison: ResourceComparison): { key: string, diff: string }[] => {
+        if (!comparison.mainResource && !comparison.replicaResource) return [];
+        
+        const mainData = comparison.mainResource?.data || {};
+        const replicaData = comparison.replicaResource?.data || {};
+        
+        // Get all unique keys from both data objects
+        const allKeys = new Set([...Object.keys(mainData), ...Object.keys(replicaData)]);
+        const keyDiffs: { key: string, diff: string }[] = [];
+        
+        allKeys.forEach(key => {
+            const mainValue = mainData[key] || '';
+            const replicaValue = replicaData[key] || '';
+            
+            if (mainValue !== replicaValue) {
+                const keyDiff = diff.createPatch(
+                    key,
+                    mainValue,
+                    replicaValue,
+                    'Main Cluster',
+                    'Replica Cluster'
+                );
+                keyDiffs.push({ key, diff: keyDiff });
+            }
+        });
+        
+        return keyDiffs;
+    };
+
     // Utility function to create diff with optionally decoded data
     const createDecodedDiff = (comparison: ResourceComparison): string | null => {
         if (!comparison.mainResource && !comparison.replicaResource) return null;
@@ -232,6 +262,38 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
 
     const renderDiffContent = (comparison: ResourceComparison) => {
         if (!comparison) return null;
+
+        // Special handling for ConfigMap resources - show key-by-key diffs
+        if (comparison.type === 'ConfigMap') {
+            const keyDiffs = createConfigMapKeyDiffs(comparison);
+            
+            if (keyDiffs.length === 0) {
+                return (
+                    <Alert severity="info">
+                        No differences found in ConfigMap data.
+                    </Alert>
+                );
+            }
+
+            return (
+                <Box>
+                    <Typography variant="h6" gutterBottom>
+                        ConfigMap Key Differences ({keyDiffs.length} key{keyDiffs.length !== 1 ? 's' : ''} differ)
+                    </Typography>
+                    {keyDiffs.map(({ key, diff }, index) => (
+                        <Box key={key} sx={{ mb: 3 }}>
+                            <Typography variant="subtitle1" gutterBottom>
+                                Key: <code>{key}</code>
+                            </Typography>
+                            {renderDiff(diff)}
+                            {index < keyDiffs.length - 1 && (
+                                <Box sx={{ my: 2, borderBottom: 1, borderColor: 'divider' }} />
+                            )}
+                        </Box>
+                    ))}
+                </Box>
+            );
+        }
 
         // For opaque secrets with decode toggle enabled, create new diff with decoded data
         if (isOpaqueSecret(comparison) && showDecodedContent) {
