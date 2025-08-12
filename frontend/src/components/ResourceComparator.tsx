@@ -59,7 +59,8 @@ interface ResourceComparatorProps {
         resourceType: string,
         namespace: string,
         direction: 'main-to-replica' | 'replica-to-main',
-        resourceData: any
+        resourceData: any,
+        originalData: any
     ) => void;
     loading: boolean;
 }
@@ -199,12 +200,14 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         const {resource, direction} = confirmDialog;
         if (resource && direction) {
             const sourceResource = direction === 'main-to-replica' ? resource.mainResource : resource.replicaResource;
+            const originalResource = direction === 'main-to-replica' ? resource.replicaResource : resource.mainResource;
             onApplyChanges(
                 resource.name,
                 resource.type,
                 resource.namespace,
                 direction,
-                sourceResource
+                sourceResource,
+                originalResource
             );
         }
         setConfirmDialog({open: false, resource: null, direction: null});
