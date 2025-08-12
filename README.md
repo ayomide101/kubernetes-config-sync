@@ -11,43 +11,23 @@ A full-stack web application for comparing secrets and configmaps between Kubern
 - **Apply Changes**: Copy resources between clusters with confirmation dialogs
 - **Comprehensive UI**: Material-UI based interface with step-by-step workflow
 
-## Architecture
+## This is not production-ready and has no authentication or authorization, only use in secure environments
 
-### Backend (Node.js + TypeScript)
-- **Express.js** server with REST API endpoints
-- **Kubernetes Client** integration for cluster communication
-- **File Upload** handling with multer
-- **Diff Generation** using the diff library
-- **CORS** enabled for frontend communication
+## Security Considerations
 
-### Frontend (React + TypeScript)
-- **Material-UI** components for modern, responsive design
-- **Step-by-step wizard** interface for guided workflow
-- **Real-time feedback** with loading states and error handling
-- **Interactive diff viewer** with apply changes functionality
-- **Responsive design** that works on desktop and mobile
+- Kubeconfig files are stored in memory only and not persisted
+- All cluster communications use the official Kubernetes client library
+- CORS is configured for development (adjust for production)
+- Consider running in a secure environment when handling production clusters
 
-## Project Structure
 
-```
-config-compartor/
-├── src/
-│   └── backend/
-│       └── index.ts                 # Main backend server
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx                  # Main React application
-│   │   └── components/
-│   │       ├── ConfigUpload.tsx     # File upload component
-│   │       ├── NamespaceSelector.tsx # Namespace selection
-│   │       └── ResourceComparator.tsx # Diff viewer & actions
-│   ├── package.json                 # Frontend dependencies
-│   └── public/
-├── package.json                     # Main project & backend deps
-├── tsconfig.json                    # TypeScript config
-├── tsconfig.backend.json           # Backend-specific TypeScript config
-└── README.md
-```
+## Images
+
+![Step 1](images/step-1-upload-config.png)
+![Step 2](images/step-2-namespace-selection-1.png)
+![Step 2](images/step-2-namespace-selection.png)
+![Step 3](images/step-3-resource-view.png)
+
 
 ## Installation & Setup
 
@@ -142,12 +122,22 @@ Health check endpoint
 - **Main Only**: Resource exists only in the main cluster
 - **Replica Only**: Resource exists only in the replica cluster
 
-## Security Considerations
+## Architecture
 
-- Kubeconfig files are stored in memory only and not persisted
-- All cluster communications use the official Kubernetes client library
-- CORS is configured for development (adjust for production)
-- Consider running in a secure environment when handling production clusters
+### Backend (Node.js + TypeScript)
+- **Express.js** server with REST API endpoints
+- **Kubernetes Client** integration for cluster communication
+- **File Upload** handling with multer
+- **Diff Generation** using the diff library
+- **CORS** enabled for frontend communication
+
+### Frontend (React + TypeScript)
+- **Material-UI** components for modern, responsive design
+- **Step-by-step wizard** interface for guided workflow
+- **Real-time feedback** with loading states and error handling
+- **Interactive diff viewer** with apply changes functionality
+- **Responsive design** that works on desktop and mobile
+
 
 ## Development Scripts
 
