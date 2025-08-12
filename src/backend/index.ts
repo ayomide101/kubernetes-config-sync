@@ -264,7 +264,6 @@ app.post('/api/apply-changes', async (req, res) => {
             console.log('Applying Secret:', resourceName, 'to namespace:', namespace);
             let payload = {
                 metadata: {
-                    uid: originalData.uid,
                     name: resourceName,
                     namespace: namespace
                 },
@@ -273,7 +272,19 @@ app.post('/api/apply-changes', async (req, res) => {
                 type: resourceData.type,
                 immutable: resourceData.immutable,
             } as V1Secret;
-            await targetCluster.api.createNamespacedSecret(namespace, payload);
+            
+            try {
+                await targetCluster.api.createNamespacedSecret(namespace, payload);
+                console.log('Secret created successfully');
+            } catch (createError: any) {
+                if (createError.body?.reason === 'AlreadyExists') {
+                    console.log('Secret already exists, attempting to replace');
+                    await targetCluster.api.replaceNamespacedSecret(resourceName, namespace, payload);
+                    console.log('Secret replaced successfully');
+                } else {
+                    throw createError;
+                }
+            }
         } else if (resourceType === 'ConfigMap') {
             console.log('Applying ConfigMap:', resourceName, 'to namespace:', namespace);
             let payload = {
@@ -285,7 +296,19 @@ app.post('/api/apply-changes', async (req, res) => {
                 },
                 immutable: resourceData.immutable,
             } as V1ConfigMap;
-            await targetCluster.api.createNamespacedConfigMap(namespace, payload);
+            
+            try {
+                await targetCluster.api.createNamespacedConfigMap(namespace, payload);
+                console.log('ConfigMap created successfully');
+            } catch (createError: any) {
+                if (createError.body?.reason === 'AlreadyExists') {
+                    console.log('ConfigMap already exists, attempting to replace');
+                    await targetCluster.api.replaceNamespacedConfigMap(resourceName, namespace, payload);
+                    console.log('ConfigMap replaced successfully');
+                } else {
+                    throw createError;
+                }
+            }
         }
 
         res.json({
