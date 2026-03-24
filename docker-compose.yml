@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  config-compartor:
+  config-comparator:
     build:
       context: .
       dockerfile: Dockerfile
@@ -22,7 +22,7 @@ services:
       # Optional: Mount kubeconfig directory for local testing
       # - ~/.kube:/home/app/.kube:ro
     networks:
-      - config-compartor-network
+      - config-comparator-network
 
   # Optional: nginx reverse proxy for production-like setup
   nginx:
@@ -34,12 +34,12 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       # - ./ssl:/etc/nginx/ssl:ro  # For SSL certificates
     depends_on:
-      - config-compartor
+      - config-comparator
     networks:
-      - config-compartor-network
+      - config-comparator-network
     profiles:
       - with-nginx
 
 networks:
-  config-compartor-network:
+  config-comparator-network:
     driver: bridge

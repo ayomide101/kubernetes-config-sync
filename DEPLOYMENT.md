@@ -23,13 +23,13 @@ Config Comparator is a React/Node.js application that allows users to compare Ku
 
 ```bash
 # Build the Docker image
-docker build -t config-compartor:latest .
+docker build -t config-comparator:latest .
 
 # Tag for registry (optional)
-docker tag config-compartor:latest your-registry/config-compartor:latest
+docker tag config-comparator:latest your-registry/config-comparator:latest
 
 # Push to registry (optional)
-docker push your-registry/config-compartor:latest
+docker push your-registry/config-comparator:latest
 ```
 
 ### Running with Docker Compose
@@ -44,7 +44,7 @@ docker-compose up -d
 docker-compose --profile with-nginx up -d
 
 # View logs
-docker-compose logs -f config-compartor
+docker-compose logs -f config-comparator
 
 # Stop the application
 docker-compose down
@@ -59,17 +59,17 @@ The application will be available at:
 ```bash
 # Run the container
 docker run -d \
-  --name config-compartor \
+  --name config-comparator \
   -p 3001:3001 \
   -e PORT=3001 \
   -e NODE_ENV=production \
-  config-compartor:latest
+  config-comparator:latest
 
 # View logs
-docker logs -f config-compartor
+docker logs -f config-comparator
 
 # Stop and remove
-docker stop config-compartor && docker rm config-compartor
+docker stop config-comparator && docker rm config-comparator
 ```
 
 ## Kubernetes Deployment
@@ -78,7 +78,7 @@ docker stop config-compartor && docker rm config-compartor
 
 1. **Update the image reference** in `k8s-deployment.yaml`:
    ```yaml
-   image: your-registry/config-compartor:latest
+   image: your-registry/config-comparator:latest
    ```
 
 2. **Deploy the application**:
@@ -88,14 +88,14 @@ docker stop config-compartor && docker rm config-compartor
    
    # Check deployment status
    kubectl get deployments
-   kubectl get pods -l app=config-compartor
+   kubectl get pods -l app=config-comparator
    kubectl get services
    ```
 
 3. **Access the application**:
    ```bash
    # Port forward for local access
-   kubectl port-forward service/config-compartor-service 8080:80
+   kubectl port-forward service/config-comparator-service 8080:80
    
    # Application will be available at http://localhost:8080
    ```
@@ -163,29 +163,29 @@ The application includes health check endpoints:
 
 ```bash
 # Check pod status
-kubectl get pods -l app=config-compartor
+kubectl get pods -l app=config-comparator
 
 # View pod logs
-kubectl logs -f deployment/config-compartor
+kubectl logs -f deployment/config-comparator
 
 # Check service endpoints
-kubectl get endpoints config-compartor-service
+kubectl get endpoints config-comparator-service
 
 # Describe deployment for troubleshooting
-kubectl describe deployment config-compartor
+kubectl describe deployment config-comparator
 ```
 
 ### Docker
 
 ```bash
 # Check container status
-docker ps | grep config-compartor
+docker ps | grep config-comparator
 
 # View container logs
-docker logs -f config-compartor
+docker logs -f config-comparator
 
 # Check container health
-docker inspect config-compartor | grep Health
+docker inspect config-comparator | grep Health
 ```
 
 ## Troubleshooting
@@ -211,10 +211,10 @@ docker inspect config-compartor | grep Health
 
 ```bash
 # Docker debug
-docker run -it --entrypoint /bin/sh config-compartor:latest
+docker run -it --entrypoint /bin/sh config-comparator:latest
 
 # Kubernetes debug
-kubectl exec -it deployment/config-compartor -- /bin/sh
+kubectl exec -it deployment/config-comparator -- /bin/sh
 kubectl describe pod <pod-name>
 kubectl get events --sort-by=.metadata.creationTimestamp
 ```
@@ -251,8 +251,8 @@ To scale the Kubernetes deployment:
 
 ```bash
 # Scale to 3 replicas
-kubectl scale deployment config-compartor --replicas=3
+kubectl scale deployment config-comparator --replicas=3
 
 # Auto-scaling (requires metrics server)
-kubectl autoscale deployment config-compartor --min=2 --max=10 --cpu-percent=80
+kubectl autoscale deployment config-comparator --min=2 --max=10 --cpu-percent=80
 ```
