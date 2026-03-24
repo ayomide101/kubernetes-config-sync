@@ -113,6 +113,13 @@ const NamespaceSelector: React.FC<NamespaceSelectorProps> = ({
         ...namespaceData.replicaNamespaces
     ])).sort();
 
+    const CARD_STYLES: Record<string, { borderColor: string; bg: string }> = {
+        success: {borderColor: '#86efac', bg: 'linear-gradient(135deg, #f0fdf4, #dcfce7)'},
+        warning: {borderColor: '#fde68a', bg: 'linear-gradient(135deg, #fffbeb, #fef3c7)'},
+        error: {borderColor: '#fecdd3', bg: 'linear-gradient(135deg, #fff1f2, #ffe4e6)'},
+        primary: {borderColor: '#bfdbfe', bg: 'linear-gradient(135deg, #eff6ff, #dbeafe)'},
+    };
+
     const NamespaceCard = ({
                                title,
                                namespaces,
@@ -125,21 +132,24 @@ const NamespaceSelector: React.FC<NamespaceSelectorProps> = ({
         description: string;
         color: 'primary' | 'success' | 'warning' | 'error';
         showSelectActions?: boolean;
-    }) => (
-        <Card sx={{height: '100%'}}>
+    }) => {
+        const style = CARD_STYLES[color];
+        return (
+        <Card sx={{height: '100%', background: style.bg, border: `1px solid ${style.borderColor}`}}>
             <CardContent>
-                <Box sx={{display: 'flex', alignItems: 'center', mb: 2}}>
-                    <Typography variant="h6" sx={{flexGrow: 1}}>
+                <Box sx={{display: 'flex', alignItems: 'center', mb: 1}}>
+                    <Typography variant="subtitle1" sx={{flexGrow: 1, fontWeight: 700}}>
                         {title}
                     </Typography>
                     <Chip
                         label={namespaces.length}
                         color={color}
                         size="small"
+                        sx={{fontWeight: 700}}
                     />
                 </Box>
 
-                <Typography variant="body2" color="text.secondary" paragraph>
+                <Typography variant="body2" color="text.secondary" paragraph sx={{mb: 1.5, fontSize: '0.8rem'}}>
                     {description}
                 </Typography>
 
@@ -201,6 +211,7 @@ const NamespaceSelector: React.FC<NamespaceSelectorProps> = ({
             </CardContent>
         </Card>
     );
+    };
 
     return (
         <Box>

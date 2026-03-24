@@ -4,17 +4,14 @@ import {
     Typography,
     Button,
     Grid,
-    Card,
-    CardContent,
-    CardActions,
     Chip,
     Alert,
-    LinearProgress
+    LinearProgress,
 } from '@mui/material';
 import {
     CloudUpload,
     CheckCircle,
-    Description
+    InsertDriveFile,
 } from '@mui/icons-material';
 
 interface ConfigUploadProps {
@@ -26,11 +23,7 @@ interface ConfigUploadProps {
     };
 }
 
-const ConfigUpload: React.FC<ConfigUploadProps> = ({
-                                                       onUpload,
-                                                       loading,
-                                                       clustersConfigured
-                                                   }) => {
+const ConfigUpload: React.FC<ConfigUploadProps> = ({onUpload, loading, clustersConfigured}) => {
     const [mainFile, setMainFile] = useState<File | null>(null);
     const [replicaFile, setReplicaFile] = useState<File | null>(null);
     const [dragOver, setDragOver] = useState<'main' | 'replica' | null>(null);
@@ -40,11 +33,8 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'replica') => {
         const file = event.target.files?.[0] || null;
-        if (type === 'main') {
-            setMainFile(file);
-        } else {
-            setReplicaFile(file);
-        }
+        if (type === 'main') setMainFile(file);
+        else setReplicaFile(file);
     };
 
     const handleDragOver = (event: React.DragEvent, type: 'main' | 'replica') => {
@@ -52,96 +42,139 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
         setDragOver(type);
     };
 
-    const handleDragLeave = () => {
-        setDragOver(null);
-    };
+    const handleDragLeave = () => setDragOver(null);
 
     const handleDrop = (event: React.DragEvent, type: 'main' | 'replica') => {
         event.preventDefault();
         setDragOver(null);
-
         const file = event.dataTransfer.files[0];
         if (file) {
-            if (type === 'main') {
-                setMainFile(file);
-            } else {
-                setReplicaFile(file);
-            }
+            if (type === 'main') setMainFile(file);
+            else setReplicaFile(file);
         }
     };
 
-    const handleUpload = () => {
-        onUpload(mainFile, replicaFile);
+    const ACCENT_COLORS: Record<'main' | 'replica', { bg: string; border: string; iconBg: string; iconColor: string }> = {
+        main: {
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            border: '#93c5fd',
+            iconBg: '#dbeafe',
+            iconColor: '#1d4ed8',
+        },
+        replica: {
+            bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+            border: '#c4b5fd',
+            iconBg: '#ede9fe',
+            iconColor: '#6d28d9',
+        },
     };
 
-    const FileUploadCard = ({
-                                type,
-                                file,
-                                onFileSelect,
-                                inputRef,
-                                configured
-                            }: {
+    const FileUploadZone = ({
+        type,
+        file,
+        onFileSelect,
+        inputRef,
+        configured,
+    }: {
         type: 'main' | 'replica';
         file: File | null;
         onFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
         inputRef: React.RefObject<HTMLInputElement>;
         configured: boolean;
-    }) => (
-        <Card
-            sx={{
-                height: '100%',
-                border: dragOver === type ? '2px dashed #1976d2' : '1px solid #e0e0e0',
-                backgroundColor: dragOver === type ? '#f5f5f5' : 'white',
-                transition: 'all 0.3s ease'
-            }}
-            onDragOver={(e) => handleDragOver(e, type)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, type)}
-        >
-            <CardContent sx={{textAlign: 'center', py: 4}}>
-                <Typography variant="h6" gutterBottom textTransform="capitalize">
-                    {type} Cluster Configuration
-                </Typography>
+    }) => {
+        const accent = ACCENT_COLORS[type];
+        const isActive = dragOver === type;
+        const label = type === 'main' ? 'Main Cluster' : 'Replica Cluster';
 
-                <Box sx={{mb: 3}}>
+        return (
+            <Box
+                onDragOver={(e) => handleDragOver(e, type)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, type)}
+                sx={{
+                    minHeight: 240,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                    p: 4,
+                    borderRadius: 3,
+                    border: `2px dashed ${isActive ? '#326CE5' : configured ? '#86efac' : accent.border}`,
+                    background: isActive
+                        ? 'rgba(50, 108, 229, 0.06)'
+                        : configured
+                        ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
+                        : accent.bg,
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                }}
+                onClick={() => !loading && inputRef.current?.click()}
+            >
+                {/* Icon */}
+                <Box sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '16px',
+                    background: configured ? '#bbf7d0' : isActive ? 'rgba(50,108,229,0.12)' : accent.iconBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                }}>
                     {configured ? (
-                        <CheckCircle sx={{fontSize: 60, color: 'success.main'}}/>
+                        <CheckCircle sx={{fontSize: 36, color: '#059669'}}/>
                     ) : file ? (
-                        <Description sx={{fontSize: 60, color: 'primary.main'}}/>
+                        <InsertDriveFile sx={{fontSize: 36, color: accent.iconColor}}/>
                     ) : (
-                        <CloudUpload sx={{fontSize: 60, color: 'action.disabled'}}/>
+                        <CloudUpload sx={{fontSize: 36, color: isActive ? '#326CE5' : accent.iconColor}}/>
                     )}
                 </Box>
 
-                {file && (
-                    <Box sx={{mb: 2}}>
-                        <Chip
-                            label={file.name}
-                            variant="outlined"
-                            color="primary"
-                            size="small"
-                        />
-                        <Typography variant="caption" display="block" sx={{mt: 1}}>
-                            Size: {(file.size / 1024).toFixed(1)} KB
+                {/* Label */}
+                <Box sx={{textAlign: 'center'}}>
+                    <Typography variant="subtitle1" sx={{fontWeight: 700, mb: 0.5}}>
+                        {label}
+                    </Typography>
+                    {configured ? (
+                        <Chip label="Configuration loaded" color="success" size="small" icon={<CheckCircle/>}/>
+                    ) : file ? (
+                        <Box sx={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5}}>
+                            <Chip
+                                label={file.name}
+                                variant="outlined"
+                                color="primary"
+                                size="small"
+                                icon={<InsertDriveFile/>}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                                {(file.size / 1024).toFixed(1)} KB
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">
+                            Drop kubeconfig here or{' '}
+                            <Box component="span" sx={{color: 'primary.main', fontWeight: 600}}>browse</Box>
                         </Typography>
-                    </Box>
-                )}
+                    )}
+                </Box>
 
-                {configured && (
-                    <Chip
-                        label="Configuration Loaded"
-                        color="success"
+                {/* Change file button (shown when file is selected) */}
+                {file && !configured && (
+                    <Button
                         size="small"
-                        icon={<CheckCircle/>}
-                    />
+                        variant="outlined"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            inputRef.current?.click();
+                        }}
+                        disabled={loading}
+                        sx={{mt: 0.5}}
+                    >
+                        Change File
+                    </Button>
                 )}
 
-                <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>
-                    Drop your kubeconfig file here or click to browse
-                </Typography>
-            </CardContent>
-
-            <CardActions sx={{justifyContent: 'center', pb: 3}}>
                 <input
                     ref={inputRef}
                     type="file"
@@ -149,46 +182,35 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
                     style={{display: 'none'}}
                     onChange={onFileSelect}
                 />
-                <Button
-                    variant={file ? "outlined" : "contained"}
-                    onClick={() => inputRef.current?.click()}
-                    startIcon={<CloudUpload/>}
-                    disabled={loading}
-                >
-                    {file ? 'Change File' : 'Select File'}
-                </Button>
-            </CardActions>
-        </Card>
-    );
+            </Box>
+        );
+    };
 
     return (
         <Box>
             <Typography variant="h5" gutterBottom>
-                Upload Cluster Configuration Files
+                Upload Cluster Configurations
             </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-                Upload the kubeconfig files for both your main and replica clusters.
-                These files will be used to connect to your clusters and retrieve secrets and configmaps.
+            <Typography variant="body1" color="text.secondary" sx={{mb: 3}}>
+                Upload kubeconfig files for both clusters. They'll be used to retrieve and compare secrets and configmaps.
             </Typography>
 
-            <Alert severity="info" sx={{mb: 3}}>
-                <Typography variant="body2">
-                    <strong>Supported formats:</strong> YAML (.yaml, .yml), Conf (.conf) and JSON (.json) kubeconfig files
-                </Typography>
+            <Alert severity="info" sx={{mb: 4}}>
+                <strong>Supported formats:</strong> YAML (.yaml, .yml), Conf (.conf), JSON (.json)
             </Alert>
 
             {loading && (
                 <Box sx={{mb: 3}}>
-                    <Typography variant="body2" gutterBottom>
-                        Uploading and validating configuration files...
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Uploading and validating...
                     </Typography>
-                    <LinearProgress/>
+                    <LinearProgress sx={{borderRadius: 4}}/>
                 </Box>
             )}
 
             <Grid container spacing={3} sx={{mb: 4}}>
                 <Grid size={{xs: 12, md: 6}}>
-                    <FileUploadCard
+                    <FileUploadZone
                         type="main"
                         file={mainFile}
                         onFileSelect={(e) => handleFileSelect(e, 'main')}
@@ -197,7 +219,7 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
                     />
                 </Grid>
                 <Grid size={{xs: 12, md: 6}}>
-                    <FileUploadCard
+                    <FileUploadZone
                         type="replica"
                         file={replicaFile}
                         onFileSelect={(e) => handleFileSelect(e, 'replica')}
@@ -211,9 +233,10 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
                 <Button
                     variant="contained"
                     size="large"
-                    onClick={handleUpload}
+                    onClick={() => onUpload(mainFile, replicaFile)}
                     disabled={!mainFile || !replicaFile || loading}
                     startIcon={<CloudUpload/>}
+                    sx={{px: 4}}
                 >
                     {loading ? 'Uploading...' : 'Upload Configurations'}
                 </Button>
@@ -230,14 +253,14 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
                         }}
                         disabled={loading}
                     >
-                        Clear Files
+                        Clear
                     </Button>
                 )}
             </Box>
 
             {(clustersConfigured.main || clustersConfigured.replica) && (
                 <Alert severity="success" sx={{mt: 3}}>
-                    Configuration files uploaded successfully! You can now proceed to select namespaces.
+                    Configuration files uploaded successfully. Proceed to select namespaces.
                 </Alert>
             )}
         </Box>
@@ -245,4 +268,3 @@ const ConfigUpload: React.FC<ConfigUploadProps> = ({
 };
 
 export default ConfigUpload;
-

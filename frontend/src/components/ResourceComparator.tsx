@@ -147,7 +147,7 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         const mainType = comparison.mainResource?.type;
         const replicaType = comparison.replicaResource?.type;
 
-        return mainType === 'Opaque' || replicaType === 'Opaque';
+        return mainType.indexOf('Opaque') !== -1 || replicaType.indexOf('Opaque') !== -1;
     };
 
     // Utility function to decode base64 data
@@ -226,7 +226,7 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
 
     const handleViewDiff = (comparison: ResourceComparison) => {
         setSelectedComparison(comparison);
-        setShowDecodedContent(false); // Reset toggle when opening new diff
+        setShowDecodedContent(isOpaqueSecret(comparison)); // Auto-decode Opaque secrets
         setCurrentTab(0); // Reset to first tab when opening new diff
         setDialogOpen(true);
     };
@@ -717,18 +717,30 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
         );
     };
 
+    const STATUS_BORDER: Record<string, string> = {
+        identical: '#059669',
+        different: '#d97706',
+        'main-only': '#0284c7',
+        'replica-only': '#dc2626',
+    };
+
     const ResourceCard = ({resource}: { resource: ResourceComparison }) => (
-        <Card sx={{mb: 2}}>
-            <CardContent>
-                <Box sx={{display: 'flex', alignItems: 'center', mb: 2}}>
-                    <Typography variant="h6" sx={{flexGrow: 1}}>
+        <Card sx={{
+            mb: 1.5,
+            border: `1px solid ${STATUS_BORDER[resource.status] || '#94a3b8'}`,
+            transition: 'box-shadow 0.15s ease',
+            '&:hover': {boxShadow: '0 4px 12px rgba(0,0,0,0.1)'},
+        }}>
+            <CardContent sx={{pb: '12px !important'}}>
+                <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mb: 1.5}}>
+                    <Typography variant="subtitle1" sx={{flexGrow: 1, fontWeight: 600, fontFamily: 'monospace', fontSize: '0.9rem'}}>
                         {resource.name}
                     </Typography>
                     <Chip
                         label={resource.type}
                         size="small"
                         variant="outlined"
-                        sx={{mr: 1}}
+                        sx={{fontFamily: 'monospace', fontSize: '0.7rem'}}
                     />
                     <Chip
                         label={getStatusLabel(resource.status)}
@@ -740,18 +752,26 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
 
                 <Grid container spacing={2}>
                     <Grid size={{xs: 6}}>
-                        <Typography variant="subtitle2" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em'}}>
                             Main Cluster
                         </Typography>
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{
+                            color: resource.mainExists ? 'success.main' : 'error.main',
+                            fontWeight: 500,
+                            mt: 0.25,
+                        }}>
                             {resource.mainExists ? '✓ Exists' : '✗ Not found'}
                         </Typography>
                     </Grid>
                     <Grid size={{xs: 6}}>
-                        <Typography variant="subtitle2" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em'}}>
                             Replica Cluster
                         </Typography>
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{
+                            color: resource.replicaExists ? 'success.main' : 'error.main',
+                            fontWeight: 500,
+                            mt: 0.25,
+                        }}>
                             {resource.replicaExists ? '✓ Exists' : '✗ Not found'}
                         </Typography>
                     </Grid>
@@ -850,62 +870,67 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
 
             {/* Summary Cards */}
             <Grid container spacing={2} sx={{mb: 4}}>
-                <Grid size={{xs: 6, sm: 3}}>
-                    <Card>
-                        <CardContent sx={{textAlign: 'center'}}>
-                            <Typography variant="h4" color="primary">
-                                {totalResources}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Total Resources
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid size={{xs: 6, sm: 3}}>
-                    <Card>
-                        <CardContent sx={{textAlign: 'center'}}>
-                            <Typography variant="h4" color="success.main">
-                                {statusCounts['identical'] || 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Identical
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid size={{xs: 6, sm: 3}}>
-                    <Card>
-                        <CardContent sx={{textAlign: 'center'}}>
-                            <Typography variant="h4" color="warning.main">
-                                {statusCounts['different'] || 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Different
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid size={{xs: 6, sm: 3}}>
-                    <Card>
-                        <CardContent sx={{textAlign: 'center'}}>
-                            <Typography variant="h4" color="error.main">
-                                {(statusCounts['main-only'] || 0) + (statusCounts['replica-only'] || 0)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Missing
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
+                {[
+                    {
+                        value: totalResources,
+                        label: 'Total Resources',
+                        bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                        border: '#bfdbfe',
+                        color: '#1d4ed8',
+                    },
+                    {
+                        value: statusCounts['identical'] || 0,
+                        label: 'Identical',
+                        bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                        border: '#bbf7d0',
+                        color: '#059669',
+                    },
+                    {
+                        value: statusCounts['different'] || 0,
+                        label: 'Different',
+                        bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                        border: '#fde68a',
+                        color: '#d97706',
+                    },
+                    {
+                        value: (statusCounts['main-only'] || 0) + (statusCounts['replica-only'] || 0),
+                        label: 'Missing',
+                        bg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                        border: '#fecdd3',
+                        color: '#dc2626',
+                    },
+                ].map(({value, label, bg, border, color}) => (
+                    <Grid size={{xs: 6, sm: 3}} key={label}>
+                        <Card sx={{background: bg, border: `1px solid ${border}`}}>
+                            <CardContent sx={{textAlign: 'center', py: 2.5}}>
+                                <Typography variant="h3" sx={{color, fontWeight: 800, lineHeight: 1}}>
+                                    {value}
+                                </Typography>
+                                <Typography variant="body2" sx={{color, opacity: 0.75, mt: 0.5, fontWeight: 500}}>
+                                    {label}
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                ))}
             </Grid>
 
             {/* Resource Comparisons by Namespace */}
             {comparisons.map((comparison) => (
                 <Accordion key={comparison.namespace} defaultExpanded>
-                    <AccordionSummary expandIcon={<ExpandMore/>}>
-                        <Typography variant="h6">
-                            Namespace: {comparison.namespace}
+                    <AccordionSummary expandIcon={<ExpandMore/>} sx={{
+                        '& .MuiAccordionSummary-content': {alignItems: 'center'},
+                    }}>
+                        <Box sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: 'primary.main',
+                            mr: 1.5,
+                            flexShrink: 0,
+                        }}/>
+                        <Typography variant="subtitle1" sx={{fontWeight: 700, fontFamily: 'monospace'}}>
+                            {comparison.namespace}
                         </Typography>
                         <Box sx={{ml: 'auto', mr: 2, display: 'flex', gap: 1}}>
                             <Chip
@@ -924,7 +949,14 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                         {/* Secrets */}
                         {comparison.secrets.length > 0 && (
                             <Box sx={{mb: 3}}>
-                                <Typography variant="subtitle1" gutterBottom>
+                                <Typography variant="caption" sx={{
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.08em',
+                                    color: 'text.secondary',
+                                    display: 'block',
+                                    mb: 1.5,
+                                }}>
                                     Secrets
                                 </Typography>
                                 {comparison.secrets.map((secret) => (
@@ -936,7 +968,14 @@ const ResourceComparator: React.FC<ResourceComparatorProps> = ({
                         {/* ConfigMaps */}
                         {comparison.configMaps.length > 0 && (
                             <Box>
-                                <Typography variant="subtitle1" gutterBottom>
+                                <Typography variant="caption" sx={{
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.08em',
+                                    color: 'text.secondary',
+                                    display: 'block',
+                                    mb: 1.5,
+                                }}>
                                     ConfigMaps
                                 </Typography>
                                 {comparison.configMaps.map((configMap) => (

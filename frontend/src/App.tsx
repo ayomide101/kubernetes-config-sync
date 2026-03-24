@@ -13,7 +13,8 @@ import {
     CircularProgress,
     ThemeProvider,
     createTheme,
-    CssBaseline
+    CssBaseline,
+    Paper,
 } from '@mui/material';
 import axios from 'axios';
 import ConfigUpload from './components/ConfigUpload';
@@ -24,10 +25,105 @@ import './App.css';
 const theme = createTheme({
     palette: {
         primary: {
-            main: '#1976d2',
+            main: '#326CE5',
+            light: '#5B8DF7',
+            dark: '#1A4FA8',
+            contrastText: '#ffffff',
         },
         secondary: {
-            main: '#dc004e',
+            main: '#7c3aed',
+        },
+        success: {
+            main: '#059669',
+            light: '#d1fae5',
+        },
+        warning: {
+            main: '#d97706',
+            light: '#fef3c7',
+        },
+        error: {
+            main: '#dc2626',
+            light: '#fee2e2',
+        },
+        info: {
+            main: '#0284c7',
+            light: '#e0f2fe',
+        },
+        background: {
+            default: '#f1f5f9',
+            paper: '#ffffff',
+        },
+        text: {
+            primary: '#0f172a',
+            secondary: '#64748b',
+        },
+        divider: 'rgba(0,0,0,0.08)',
+    },
+    typography: {
+        fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        h3: {fontWeight: 800},
+        h5: {fontWeight: 700},
+        h6: {fontWeight: 600},
+        subtitle1: {fontWeight: 500},
+        subtitle2: {fontWeight: 600},
+    },
+    shape: {
+        borderRadius: 12,
+    },
+    components: {
+        MuiCard: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 12,
+                    border: '1px solid rgba(0,0,0,0.07)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                },
+            },
+        },
+        MuiButton: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 8,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                },
+            },
+        },
+        MuiChip: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 6,
+                    fontWeight: 500,
+                    fontSize: '0.75rem',
+                },
+            },
+        },
+        MuiAccordion: {
+            styleOverrides: {
+                root: {
+                    borderRadius: '12px !important',
+                    border: '1px solid rgba(0,0,0,0.07)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    '&:before': {display: 'none'},
+                    marginBottom: '8px !important',
+                },
+            },
+        },
+        MuiDialog: {
+            styleOverrides: {
+                paper: {borderRadius: 16},
+            },
+        },
+        MuiAlert: {
+            styleOverrides: {
+                root: {borderRadius: 10},
+            },
+        },
+        MuiPaper: {
+            styleOverrides: {
+                root: {backgroundImage: 'none'},
+            },
         },
     },
 });
@@ -64,17 +160,13 @@ function App() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    // State for cluster configurations
     const [clustersConfigured, setClustersConfigured] = useState({
         main: false,
-        replica: false
+        replica: false,
     });
 
-    // State for namespaces
     const [namespaceData, setNamespaceData] = useState<NamespaceData | null>(null);
     const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>([]);
-
-    // State for comparisons
     const [comparisons, setComparisons] = useState<ComparisonResult[]>([]);
 
     const handleConfigUpload = async (mainFile: File | null, replicaFile: File | null) => {
@@ -92,20 +184,16 @@ function App() {
             formData.append('replicaConfig', replicaFile);
 
             const response = await axios.post('/api/upload-config', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: {'Content-Type': 'multipart/form-data'},
             });
 
             if (response.data.success) {
                 setClustersConfigured({
                     main: response.data.mainCluster,
-                    replica: response.data.replicaCluster
+                    replica: response.data.replicaCluster,
                 });
                 setSuccess('Configuration files uploaded successfully');
                 setActiveStep(1);
-
-                // Fetch namespaces
                 await fetchNamespaces();
             }
         } catch (err: any) {
@@ -143,7 +231,7 @@ function App() {
 
         try {
             const response = await axios.post('/api/compare-resources', {
-                namespaces: selectedNamespaces
+                namespaces: selectedNamespaces,
             });
 
             setComparisons(response.data.comparisons);
@@ -173,7 +261,7 @@ function App() {
                 namespace,
                 direction,
                 resourceData,
-                originalData
+                originalData,
             });
 
             if (response.data.success) {
@@ -195,16 +283,57 @@ function App() {
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>
-            <Container maxWidth="xl">
-                <Box sx={{my: 4}}>
-                    <Typography variant="h3" component="h1" gutterBottom align="center">
-                        Kubernetes Config Comparator
-                    </Typography>
-                    <Typography variant="subtitle1" align="center" color="text.secondary" paragraph>
-                        Compare secrets and configmaps between your main and replica clusters
-                    </Typography>
 
-                    <Box sx={{width: '100%', mb: 4}}>
+            {/* Header */}
+            <Box sx={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%)',
+                py: 2.5,
+                px: {xs: 2, md: 4},
+            }}>
+                <Box sx={{maxWidth: 1536, mx: 'auto', display: 'flex', alignItems: 'center', gap: 2}}>
+                    <Box sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,0.12)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <Typography sx={{
+                            fontSize: 17,
+                            fontWeight: 800,
+                            color: 'white',
+                            fontFamily: '"Inter", monospace',
+                            letterSpacing: '-0.5px',
+                        }}>
+                            K8s
+                        </Typography>
+                    </Box>
+                    <Box>
+                        <Typography variant="h6" sx={{color: 'white', fontWeight: 700, lineHeight: 1.25}}>
+                            Config Comparator
+                        </Typography>
+                        <Typography variant="caption" sx={{color: 'rgba(255,255,255,0.6)'}}>
+                            Compare secrets and configmaps between Kubernetes clusters
+                        </Typography>
+                    </Box>
+                </Box>
+            </Box>
+
+            {/* Page body */}
+            <Box sx={{backgroundColor: 'background.default', minHeight: 'calc(100vh - 80px)', py: 4}}>
+                <Container maxWidth="xl">
+
+                    {/* Stepper */}
+                    <Paper elevation={0} sx={{
+                        mb: 3,
+                        p: {xs: 2, md: 3},
+                        border: '1px solid rgba(0,0,0,0.07)',
+                        borderRadius: 3,
+                    }}>
                         <Stepper activeStep={activeStep} alternativeLabel>
                             {steps.map((label) => (
                                 <Step key={label}>
@@ -212,28 +341,28 @@ function App() {
                                 </Step>
                             ))}
                         </Stepper>
-                    </Box>
+                    </Paper>
 
+                    {/* Alerts */}
                     {error && (
                         <Alert severity="error" onClose={clearMessages} sx={{mb: 2}}>
                             {error}
                         </Alert>
                     )}
-
                     {success && (
                         <Alert severity="success" onClose={clearMessages} sx={{mb: 2}}>
                             {success}
                         </Alert>
                     )}
-
                     {loading && (
                         <Box display="flex" justifyContent="center" sx={{mb: 2}}>
-                            <CircularProgress/>
+                            <CircularProgress size={28}/>
                         </Box>
                     )}
 
-                    <Card>
-                        <CardContent>
+                    {/* Step content */}
+                    <Card elevation={0}>
+                        <CardContent sx={{p: {xs: 2, md: 4}}}>
                             {activeStep === 0 && (
                                 <ConfigUpload
                                     onUpload={handleConfigUpload}
@@ -279,8 +408,8 @@ function App() {
                             )}
                         </CardContent>
                     </Card>
-                </Box>
-            </Container>
+                </Container>
+            </Box>
         </ThemeProvider>
     );
 }
